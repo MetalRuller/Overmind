@@ -1,17 +1,6 @@
 // @formatter:off
 
-//
-// ___________________________________________________________
-//
-//  _____  _    _ _______  ______ _______ _____ __   _ ______
-// |     |  \  /  |______ |_____/ |  |  |   |   | \  | |     \
-// |_____|   \/   |______ |    \_ |  |  | __|__ |  \_| |_____/
-//
-// _______________________ Screeps AI ________________________
-//
-//
-// Overmind repository: github.com/bencbartlett/overmind
-//
+
 
 // Assimilator must be instantiated before any other imports
 'use strict';
@@ -80,7 +69,7 @@ function handler(): void {
 	}
 }
 
-Assimilator.validate(handler);
+//Assimilator.validate(handler);
 global.Overmind = new _Overmind();
 
 // Main loop
@@ -101,7 +90,7 @@ function main(): void {
 	Overmind.postRun();									// Error catching; should be run at end of every tick
 }
 
-Assimilator.validate(main);
+//Assimilator.validate(main);
 
 
 // Profiler-wrapped main loop
@@ -109,4 +98,4 @@ export function loop(): void {
 	profiler.wrap(handler);
 }
 
-Assimilator.validate(loop);
+//Assimilator.validate(loop);

@@ -74,7 +74,7 @@ export class OvermindConsole {
 		const b = bullet;
 		let baseInfo = [
 			`${b}Version:        Overmind v${__VERSION__}`,
-			`${b}Checksum:       ${Assimilator.generateChecksum()}`,
+			`${b}Checksum:       None`,
 			`${b}Assimilated:    ${'(not yet implemented)'}`,
 			`${b}Operating mode: ${Memory.settings.operationMode}`,
 			// `${b}CPU bucket:     ${Game.cpu.bucket}`
