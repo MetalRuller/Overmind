@@ -5,28 +5,13 @@ import {Zerg} from '../../zerg/Zerg';
 import {Tasks} from '../../tasks/Tasks';
 import {OverlordPriority} from '../../priorities/priorities_overlords';
 import {profile} from '../../profiler/decorator';
-import {CreepSetup} from '../CreepSetup';
 import {StoreStructure} from '../../declarations/typeGuards';
 import {Energetics} from '../../logistics/Energetics';
 import {SpawnRequestOptions} from '../../hiveClusters/hatchery';
 import {hasMinerals, minBy} from '../../utilities/utils';
 import {$} from '../../caching/GlobalCache';
 import {WorkerOverlord} from './worker';
-
-export const ManagerSetup = new CreepSetup('manager', {
-	pattern  : [CARRY, CARRY, MOVE],
-	sizeLimit: 8,
-});
-
-export const ManagerStationarySetup = new CreepSetup('manager', {
-	pattern  : [CARRY, CARRY],
-	sizeLimit: 8,
-});
-
-export const ManagerWorkerStationarySetup = new CreepSetup('manager', {
-	pattern  : [WORK, WORK, WORK, WORK, CARRY, CARRY],
-	sizeLimit: 8,
-});
+import {Roles, Setups} from '../../creepSetups/setups';
 
 @profile
 export class CommandCenterOverlord extends Overlord {
@@ -41,7 +26,7 @@ export class CommandCenterOverlord extends Overlord {
 		super(commandCenter, 'manager', priority);
 		this.commandCenter = commandCenter;
 		this.mode = this.colony.layout;
-		this.managers = this.zerg(ManagerSetup.role);
+		this.managers = this.zerg(Roles.manager);
 		if (this.commandCenter.terminal && _.sum(this.commandCenter.terminal.store) < TERMINAL_CAPACITY - 1000) {
 			this.depositTarget = this.commandCenter.terminal;
 		} else {
@@ -62,13 +47,13 @@ export class CommandCenterOverlord extends Overlord {
 	}
 
 	init() {
-		let setup = ManagerSetup;
+		let setup = Setups.managers.default;
 		let spawnRequestOptions: SpawnRequestOptions = {};
 		if (this.colony.bunker && this.colony.bunker.coreSpawn && this.colony.level == 8
 			&& !this.colony.roomPlanner.memory.relocating) {
-			setup = ManagerStationarySetup;
+			setup = Setups.managers.stationary;
 			if (this.managerRepairTarget && this.colony.assets.energy > WorkerOverlord.settings.fortifyDutyThreshold) {
-				setup = ManagerWorkerStationarySetup; // use working manager body if you have something to repair
+				setup = Setups.managers.stationary_work; // use working manager body if you have something to repair
 			}
 			spawnRequestOptions = {
 				spawn     : this.colony.bunker.coreSpawn,
@@ -200,8 +185,13 @@ export class CommandCenterOverlord extends Overlord {
 	private deathActions(manager: Zerg): boolean {
 		let nearbyManagers = _.filter(this.managers, manager => manager.pos.inRangeTo(this.commandCenter.pos, 3));
 		if (nearbyManagers.length > 1) {
-			if (_.sum(manager.carry) == 0 && this.managers.length > 0) {
-				manager.suicide();
+			if (_.sum(manager.carry) == 0) {
+				let nearbySpawn = _.first(manager.pos.findInRange(manager.room.spawns, 1));
+				if (nearbySpawn) {
+					nearbySpawn.recycleCreep(manager.creep);
+				} else {
+					manager.suicide();
+				}
 			} else {
 				manager.task = Tasks.transferAll(this.depositTarget);
 			}
@@ -212,7 +202,7 @@ export class CommandCenterOverlord extends Overlord {
 
 	private handleManager(manager: Zerg): void {
 		// Handle switching to next manager
-		if (manager.ticksToLive! < 50) {
+		if (manager.ticksToLive! < 150) {
 			if (this.deathActions(manager)) return;
 		}
 		// Pick up any dropped resources on ground

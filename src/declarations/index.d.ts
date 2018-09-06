@@ -12,7 +12,7 @@ declare namespace NodeJS {
 
 		Assimilator: IAssimilator;
 
-		print(...args: any[]): void;
+		print(...args: any[]): string;
 
 		deref(ref: string): RoomObject | null;
 
@@ -77,6 +77,8 @@ interface IAssimilator {
 	validate(code: any): void;
 
 	generateChecksum(): string;
+
+	run(): void;
 
 }
 

@@ -3,7 +3,6 @@
 import {OverlordPriority} from '../../priorities/priorities_overlords';
 import {DirectiveTargetSiege} from '../../directives/targeting/siegeTarget';
 import {DirectiveDestroy} from '../../directives/offense/destroy';
-import {CreepSetup} from '../CreepSetup';
 import {profile} from '../../profiler/decorator';
 import {Movement} from '../../movement/Movement';
 import {Overlord} from '../Overlord';
@@ -11,30 +10,7 @@ import {CombatZerg} from '../../zerg/CombatZerg';
 import {CombatTargeting} from '../../targeting/CombatTargeting';
 import {CombatIntel} from '../../intel/CombatIntel';
 import {boostResources} from '../../resources/map_resources';
-
-const AttackerSetup = new CreepSetup('zergling', {
-	pattern  : [TOUGH, ATTACK, ATTACK, MOVE, MOVE, MOVE],
-	sizeLimit: Infinity,
-	ordered  : true
-});
-
-const HealerSetup = new CreepSetup('transfuser', {
-	pattern  : [TOUGH, HEAL, HEAL, MOVE, MOVE, MOVE],
-	sizeLimit: Infinity,
-	ordered  : true
-});
-
-const AttackerSetup_boosted = new CreepSetup('zergling', {
-	pattern  : [TOUGH, TOUGH, ATTACK, ATTACK, ATTACK, ATTACK, ATTACK, MOVE],
-	sizeLimit: Infinity,
-	ordered  : true
-});
-
-const HealerSetup_boosted = new CreepSetup('transfuser', {
-	pattern  : [TOUGH, TOUGH, HEAL, HEAL, HEAL, HEAL, HEAL, MOVE],
-	sizeLimit: Infinity,
-	ordered  : true
-});
+import {CombatSetups, Roles} from '../../creepSetups/setups';
 
 @profile
 export class DestroyerOverlord extends Overlord {
@@ -51,19 +27,14 @@ export class DestroyerOverlord extends Overlord {
 	constructor(directive: DirectiveDestroy, priority = OverlordPriority.offense.destroy) {
 		super(directive, 'destroy', priority);
 		this.directive = directive;
-		this.attackers = this.combatZerg(AttackerSetup.role);
-		this.healers = this.combatZerg(HealerSetup.role);
-		// Comment out boost lines if you don't want to spawn boosted attackers/healers
-		this.boosts.attacker = [
-			boostResources.attack[3],
-			boostResources.tough[3],
-			boostResources.move[3],
-		];
-		this.boosts.healer = [
-			boostResources.heal[3],
-			boostResources.tough[3],
-			boostResources.move[3],
-		];
+		this.attackers = this.combatZerg(Roles.melee, {
+			notifyWhenAttacked: false,
+			boostWishlist     : [boostResources.attack[3], boostResources.tough[3], boostResources.move[3]]
+		});
+		this.healers = this.combatZerg(Roles.healer, {
+			notifyWhenAttacked: false,
+			boostWishlist     : [boostResources.heal[3], boostResources.tough[3], boostResources.move[3],]
+		});
 	}
 
 	private findTarget(attacker: CombatZerg): Creep | Structure | undefined {
@@ -85,15 +56,6 @@ export class DestroyerOverlord extends Overlord {
 		}
 	}
 
-	private retreatActions(attacker: CombatZerg, healer: CombatZerg): void {
-		if (attacker.hits > DestroyerOverlord.settings.reengageHitsPercent * attacker.hits &&
-			healer.hits > DestroyerOverlord.settings.reengageHitsPercent * healer.hits) {
-			attacker.memory.retreating = false;
-		}
-		// Healer leads retreat to fallback position
-		Movement.pairwiseMove(healer, attacker, CombatIntel.getFallbackFrom(this.directive.pos));
-	}
-
 	private attackActions(attacker: CombatZerg, healer: CombatZerg): void {
 		let target = this.findTarget(attacker);
 		if (target) {
@@ -101,6 +63,7 @@ export class DestroyerOverlord extends Overlord {
 				attacker.attack(target);
 			} else {
 				Movement.pairwiseMove(attacker, healer, target);
+				attacker.autoMelee();
 			}
 		}
 	}
@@ -119,13 +82,11 @@ export class DestroyerOverlord extends Overlord {
 		// Case 2: you have an active healer
 		else {
 			// Activate retreat condition if necessary
-			if (attacker.hits < DestroyerOverlord.settings.retreatHitsPercent * attacker.hitsMax ||
-				healer.hits < DestroyerOverlord.settings.retreatHitsPercent * healer.hitsMax) {
-				attacker.memory.retreating = true;
-			}
-			if (attacker.memory.retreating) {
-				// Retreat to fallback position
-				this.retreatActions(attacker, healer);
+			// Handle recovery if low on HP
+			if (attacker.needsToRecover(DestroyerOverlord.settings.retreatHitsPercent) ||
+				healer.needsToRecover(DestroyerOverlord.settings.retreatHitsPercent)) {
+				// Healer leads retreat to fallback position
+				Movement.pairwiseMove(healer, attacker, CombatIntel.getFallbackFrom(this.directive.pos));
 			} else {
 				// Move to room and then perform attacking actions
 				if (!attacker.inSameRoomAs(this)) {
@@ -139,7 +100,7 @@ export class DestroyerOverlord extends Overlord {
 
 	private handleHealer(healer: CombatZerg): void {
 		// If there are no hostiles in the designated room, run medic actions
-		if (this.room && this.room.hostiles.length == 0) {
+		if (this.room && this.room.hostiles.length == 0 && this.room.hostileStructures.length == 0) {
 			healer.doMedicActions();
 			return;
 		}
@@ -158,18 +119,10 @@ export class DestroyerOverlord extends Overlord {
 		}
 		// Case 2: you have an attacker partner
 		else {
-			if (attacker.hitsMax - attacker.hits > healer.hitsMax - healer.hits &&
-				attacker.hitsMax - attacker.hits > 0) {
-				// Attacker needs healing more
-				healer.heal(attacker, true);
+			if (attacker.hitsMax - attacker.hits > healer.hitsMax - healer.hits) {
+				healer.heal(attacker);
 			} else {
-				if (healer.hitsMax - healer.hits > 0) {
-					healer.heal(healer);
-				} else {
-					// Try to heal whatever else is in range
-					let target = CombatTargeting.findClosestHurtFriendly(healer);
-					if (target) healer.heal(target, true);
-				}
+				healer.heal(healer);
 			}
 		}
 	}
@@ -181,14 +134,16 @@ export class DestroyerOverlord extends Overlord {
 		} else {
 			amount = 1;
 		}
+
 		let attackerPriority = this.attackers.length < this.healers.length ? this.priority - 0.1 : this.priority + 0.1;
+		let attackerSetup = this.canBoostSetup(CombatSetups.zerglings.boosted_T3) ? CombatSetups.zerglings.boosted_T3
+																				  : CombatSetups.zerglings.default;
+		this.wishlist(amount, attackerSetup, {priority: attackerPriority});
+
 		let healerPriority = this.healers.length < this.attackers.length ? this.priority - 0.1 : this.priority + 0.1;
-		this.wishlist(amount, this.boosts.attacker && this.boosts.attacker.includes(boostResources.move[3])
-							  ? AttackerSetup_boosted : AttackerSetup);
-		this.wishlist(amount, this.boosts.healer && this.boosts.healer.includes(boostResources.move[3])
-							  ? HealerSetup_boosted : HealerSetup);
-		this.requestBoosts(this.attackers);
-		this.requestBoosts(this.healers);
+		let healerSetup = this.canBoostSetup(CombatSetups.healers.boosted_T3) ? CombatSetups.healers.boosted_T3
+																			  : CombatSetups.healers.default;
+		this.wishlist(amount, healerSetup, {priority: healerPriority});
 	}
 
 	run() {

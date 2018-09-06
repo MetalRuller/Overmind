@@ -11,15 +11,15 @@ import {Visualizer} from './visuals/Visualizer';
 import {Pathing} from './movement/Pathing';
 import {DirectiveInvasionDefense} from './directives/defense/invasionDefense';
 import {DirectiveNukeResponse} from './directives/defense/nukeResponse';
-import {QueenSetup} from './overlords/core/queen';
 import {DirectiveTerminalEvacuateState} from './directives/logistics/terminalState_evacuate';
-import {bodyCost} from './overlords/CreepSetup';
+import {bodyCost} from './creepSetups/CreepSetup';
 import {LogisticsNetwork} from './logistics/LogisticsNetwork';
 import {Cartographer, ROOMTYPE_CONTROLLER, ROOMTYPE_SOURCEKEEPER} from './utilities/Cartographer';
 import {derefCoords, hasJustSpawned, minBy} from './utilities/utils';
 import {DirectiveOutpost} from './directives/core/outpost';
 import {Autonomy, getAutonomyLevel} from './memory/Memory';
 import {RoomIntel} from './intel/RoomIntel';
+import {Roles, Setups} from './creepSetups/setups';
 
 
 // export const DIRECTIVE_CHECK_FREQUENCY = 2;
@@ -83,9 +83,9 @@ export class Overseer {
 		// Bootstrap directive: in the event of catastrophic room crash, enter emergency spawn mode.
 		// Doesn't apply to incubating colonies.
 		if (!this.colony.isIncubating) {
-			let noQueen = this.colony.getCreepsByRole(QueenSetup.role).length == 0;
+			let noQueen = this.colony.getCreepsByRole(Roles.queen).length == 0;
 			if (noQueen && this.colony.hatchery && !this.colony.spawnGroup) {
-				let energyToMakeQueen = bodyCost(QueenSetup.generateBody(this.colony.room.energyCapacityAvailable));
+				let energyToMakeQueen = bodyCost(Setups.queen.generateBody(this.colony.room.energyCapacityAvailable));
 				if (this.colony.room.energyAvailable < energyToMakeQueen || hasJustSpawned()) {
 					let result = DirectiveBootstrap.createIfNotPresent(this.colony.hatchery.pos, 'pos');
 					if (typeof result == 'string' || result == OK) { // successfully made flag
@@ -252,6 +252,7 @@ export class Overseer {
 			directive.init();
 		}
 		for (let overlord of this.overlords) {
+			overlord.preInit();
 			overlord.init();
 		}
 		// Register cleanup requests to logistics network
@@ -280,20 +281,11 @@ export class Overseer {
 		// if (Game.time % DIRECTIVE_CHECK_FREQUENCY == this.colony.id % DIRECTIVE_CHECK_FREQUENCY) {
 		this.placeDirectives();
 		// }
-		// Draw visuals
-		_.forEach(this.directives, directive => directive.visuals());
 	}
 
-	visuals(): void {
+	private drawCreepReport() {
 		const spoopyBugFix = false;
 		let roleOccupancy: { [role: string]: [number, number] } = {};
-		// Handle overlords in decreasing priority
-		// for (let priority in this.overlords) {
-		// 	if (!this.overlords[priority]) continue;
-		// 	for (let overlord of this.overlords[priority]) {
-		//
-		// 	}
-		// }
 
 		for (let overlord of this.overlords) {
 			for (let role in overlord.creepUsageReport) {
@@ -334,5 +326,15 @@ export class Overseer {
 		}
 		const tablePos = new RoomPosition(1, 11.5, this.colony.room.name);
 		Visualizer.infoBox(`${this.colony.name} Creeps`, roledata, tablePos, 7);
+	}
+
+	visuals(): void {
+		for (let directive of this.directives) {
+			directive.visuals();
+		}
+		for (let overlord of this.overlords) {
+			overlord.visuals();
+		}
+		this.drawCreepReport();
 	}
 }
