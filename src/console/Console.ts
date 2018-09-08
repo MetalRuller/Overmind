@@ -75,12 +75,15 @@ export class OvermindConsole {
 		const checksum = Assimilator.generateChecksum();
 		const clearanceCode = Assimilator.getClearanceCode(MY_USERNAME);
 		let baseInfo = [
+
 			`${b}Version:        Overmind v${__VERSION__}`,
 			`${b}Checksum:       ${checksum}`,
 			`${b}Assimilated:    ${clearanceCode ? 'Yes' : 'No'} (clearance code: ${clearanceCode}) [WIP]`,
 			`${b}Operating mode: ${Memory.settings.operationMode}`,
 			// `${b}CPU bucket:     ${Game.cpu.bucket}`
 		];
+
+ 
 		// let colonyInfo = [
 		// 	`${b}Colonies:`,
 		// ]

@@ -107,4 +107,5 @@ Assimilator.validate(main);
 export function loop(): void {
 	profiler.wrap(handler);
 }
+
 Assimilator.validate(loop);
