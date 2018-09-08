@@ -1,5 +1,9 @@
 type operationMode = 'manual' | 'semiautomatic' | 'automatic';
 
+interface RawMemory {
+	_parsed: any;
+}
+
 interface Memory {
 	assimilator: any;
 	Overmind: {};
@@ -108,6 +112,7 @@ interface PathingMemory {
 }
 
 interface FlagMemory {
+	suspendUntil?: number;
 	amount?: number;
 	created?: number;
 	persistent?: boolean;
