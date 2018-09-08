@@ -73,12 +73,12 @@ export class OvermindConsole {
 	static info(aligned = false): string {
 		const b = bullet;
 		let baseInfo = [
-			`${b}Version:        Overmind v${__VERSION__}`,
-			`${b}Checksum:       None`,
-			`${b}Assimilated:    ${'(not yet implemented)'}`,
-			`${b}Operating mode: ${Memory.settings.operationMode}`,
-			// `${b}CPU bucket:     ${Game.cpu.bucket}`
-		];
+			`${b}Version:        Overmind v${__VERSION__}`,				`${b}Version:        Overmind v${__VERSION__}`,
+			`${b}Checksum:       ${Assimilator.generateChecksum()}`,				`${b}Checksum:       ${checksum}`,
+			`${b}Assimilated:    ${'(not yet implemented)'}`,				`${b}Assimilated:    ${clearanceCode ? 'Yes' : 'No'} (clearance code: ${clearanceCode}) [WIP]`,
+			`${b}Operating mode: ${Memory.settings.operationMode}`,				`${b}Operating mode: ${Memory.settings.operationMode}`,
+			// `${b}CPU bucket:     ${Game.cpu.bucket}`				// `${b}CPU bucket:     ${Game.cpu.bucket}`
+		];			];
 		// let colonyInfo = [
 		// 	`${b}Colonies:`,
 		// ]
