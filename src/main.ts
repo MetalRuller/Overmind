@@ -94,9 +94,7 @@ export function loop(): void {
 	profiler.wrap(handler);
 }
 
-<<<<<<< HEAD
-Assimilator.validate(loop);
-=======
+
 
 // Register these functions for checksum computations with the Assimilator
 Assimilator.validate(handler);
@@ -125,4 +123,3 @@ function onGlobalReset(): void {
 
 // Run the global reset code
 onGlobalReset();
->>>>>>> pr/5
