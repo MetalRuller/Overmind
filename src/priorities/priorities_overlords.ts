@@ -13,7 +13,6 @@ export var OverlordPriority = {
 	defense: {					// Defense of local and remote rooms
 		meleeDefense : 200,
 		rangedDefense: 201,
-		guard        : 202,
 	},
 
 	warSpawnCutoff: 299, 		// Everything past this is non-critical and won't be spawned in case of emergency
@@ -35,12 +34,19 @@ export var OverlordPriority = {
 		mine          : 501,
 		work          : 502,
 		mineral       : 503,
-		transport     : 504,		// Spawn the rest of the transporters
+		transport     : 599,		// Spawn the rest of the transporters
+	},
+
+	outpostDefense: {
+		outpostDefense: 550,
+		guard         : 551,
 	},
 
 	upgrading: {				// Spawning upgraders
 		upgrade: 600,
 	},
+
+	throttleThreshold: 699,  	// Everything past this may be throttled in the event of low CPU
 
 	collectionUrgent: { 		// Collecting resources that are time sensitive, like decaying resources on ground
 		haul: 700

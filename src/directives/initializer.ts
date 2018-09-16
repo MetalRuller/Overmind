@@ -24,6 +24,8 @@ import {DirectiveControllerAttack} from './offense/controllerAttack';
 import {DirectiveSKOutpost} from './colony/outpostSK';
 import {DirectiveHarvest} from './resource/harvest';
 import {DirectiveExtract} from './resource/extract';
+import {DirectiveSwarmDestroy} from './offense/swarmDestroy';
+import {DirectiveOutpostDefense} from './defense/outpostDefense';
 
 export function DirectiveWrapper(flag: Flag): Directive | undefined {
 
@@ -46,6 +48,8 @@ export function DirectiveWrapper(flag: Flag): Directive | undefined {
 		// Offensive combat directives =================================================================================
 		case COLOR_RED:
 			switch (flag.secondaryColor) {
+				case COLOR_RED:
+					return new DirectiveSwarmDestroy(flag);
 				case COLOR_PURPLE:
 					return new DirectiveControllerAttack(flag);
 				case COLOR_ORANGE:
@@ -62,6 +66,8 @@ export function DirectiveWrapper(flag: Flag): Directive | undefined {
 			switch (flag.secondaryColor) {
 				case COLOR_BLUE:
 					return new DirectiveGuard(flag);
+				case COLOR_RED:
+					return new DirectiveOutpostDefense(flag);
 				case COLOR_PURPLE:
 					return new DirectiveInvasionDefense(flag);
 			}

@@ -3,6 +3,7 @@ import {minBy} from '../utilities/utils';
 import {CombatZerg} from '../zerg/CombatZerg';
 import {log} from '../console/log';
 import {RoomIntel} from '../intel/RoomIntel';
+import {isCombatZerg} from '../declarations/typeGuards';
 
 
 interface SkirmishAnalysis {
@@ -13,6 +14,8 @@ interface SkirmishAnalysis {
 	isRetreating: boolean,
 	isApproaching: boolean,
 }
+
+const DEBUG = false;
 
 export class GoalFinder {
 
@@ -95,18 +98,48 @@ export class GoalFinder {
 			}
 		}
 
+		if (DEBUG) {
+			log.debug(`Report for ${creep.name}:`, JSON.stringify(analysis));
+			log.debug(`Approach for ${creep.name}:`, JSON.stringify(approach));
+			log.debug(`Avoid for ${creep.name}:`, JSON.stringify(avoid));
+		}
+
 		return {approach, avoid};
 	}
 
 	static retreatGoals(creep: CombatZerg): { approach: PathFinderGoal[], avoid: PathFinderGoal[] } {
+		let approach: PathFinderGoal[] = [];
 		let avoid: PathFinderGoal[] = [];
+
+		let isHealer = CombatIntel.isHealer(creep);
+		for (let friendly of creep.room.creeps) {
+			if (CombatIntel.getHealPotential(friendly) > 0 || (isHealer && isCombatZerg(creep))) {
+				approach.push({pos: friendly.pos, range: 1});
+			}
+		}
 		for (let hostile of creep.room.hostiles) {
 			if (CombatIntel.getAttackPotential(hostile) > 0 || CombatIntel.getRangedAttackPotential(hostile) > 0) {
-				avoid.push({pos: hostile.pos, range: 10});
+				avoid.push({pos: hostile.pos, range: 8});
 			}
 		}
 		if (creep.room.owner && !creep.room.my) {
 			for (let tower of creep.room.towers) {
+				avoid.push({pos: tower.pos, range: 50});
+			}
+		}
+		return {approach, avoid};
+	}
+
+	static retreatGoalsForRoom(room: Room): { approach: PathFinderGoal[], avoid: PathFinderGoal[] } {
+		let avoid: PathFinderGoal[] = [];
+
+		for (let hostile of room.hostiles) {
+			if (CombatIntel.getAttackPotential(hostile) > 0 || CombatIntel.getRangedAttackPotential(hostile) > 0) {
+				avoid.push({pos: hostile.pos, range: 8});
+			}
+		}
+		if (room.owner && !room.my) {
+			for (let tower of room.towers) {
 				avoid.push({pos: tower.pos, range: 50});
 			}
 		}

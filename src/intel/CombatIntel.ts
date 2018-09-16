@@ -23,17 +23,21 @@ interface CombatIntelMemory {
 export class CombatIntel {
 
 	directive: Directive;
-	room: Room | undefined;
-	colony: Colony;
 
 	constructor(directive: Directive) {
 		this.directive = directive;
-		this.room = directive.room;
-		this.colony = directive.colony;
 	}
 
 	get memory(): CombatIntelMemory {
 		return Mem.wrap(this.directive.memory, 'combatIntel', {});
+	}
+
+	get room(): Room | undefined {
+		return this.directive.room;
+	}
+
+	get colony(): Colony {
+		return this.directive.colony;
 	}
 
 	// Tower damage ====================================================================================================
@@ -77,6 +81,9 @@ export class CombatIntel {
 		}
 	}
 
+
+	// Fallback and exit calculations ==================================================================================
+
 	private findBestExit(matrix: CostMatrix, towers: StructureTower[],
 						 spawns: StructureSpawn[]): RoomPosition | undefined {
 		if (!this.room) {
@@ -111,7 +118,7 @@ export class CombatIntel {
 
 		// TODO
 		let exitPositions: RoomPosition[] = [];
-		for (let x = 0; x < 50; x++) {
+		for (let x = 0; x < 50; x += 49) {
 			for (let y = 0; y < 50; y++) {
 				if (x !== 0 && y !== 0 && x !== 49 && y !== 49) {
 					continue;
@@ -143,6 +150,62 @@ export class CombatIntel {
 		matrix.set(bestExit.x, bestExit.y, 1);
 
 		return bestExit;
+	}
+
+	// static findBestSiegeExit(roomName: string, matrix?: CostMatrix): RoomPosition | undefined  {
+	// 	let edgeCoords: [number, number][] = [];
+	// 	for (let x = 0; x < 50; x += 49) {
+	// 		for (let y = 0; y < 50; y++) {
+	// 			edgeCoords.push([x,y])
+	// 		}
+	// 	}
+	// 	for (let x = 0; x < 50; x++) {
+	// 		for (let y = 0; y < 50; y += 49) {
+	// 			edgeCoords.push([x,y])
+	// 		}
+	// 	}
+	//
+	// 	const room = Game.rooms[roomName];
+	// 	let siegeTarget = CombatTargeting.findBestStructureTarget()
+	// }
+
+	findSimpleSiegeFallback(): RoomPosition {
+		let ret = Pathing.findPath(this.colony.pos, this.directive.pos, {range: 23});
+		let firstPosInRoom = _.find(ret.path, pos => pos.roomName == this.directive.pos.roomName);
+		if (firstPosInRoom) {
+			return CombatIntel.getFallbackFrom(firstPosInRoom);
+		} else {
+			return CombatIntel.getFallbackFrom(this.directive.pos);
+		}
+	}
+
+	/* Fallback is a location on the other side of the nearest exit the directive is placed at */
+	static getFallbackFrom(pos: RoomPosition, fallbackDistance = 2): RoomPosition {
+		let {x, y, roomName} = pos;
+		let rangesToExit = [[x, 'left'], [49 - x, 'right'], [y, 'top'], [49 - y, 'bottom']];
+		let [range, direction] = _.first(_.sortBy(rangesToExit, pair => pair[0]));
+		switch (direction) {
+			case 'left':
+				x = 49 - fallbackDistance;
+				roomName = Cartographer.findRelativeRoomName(roomName, -1, 0);
+				break;
+			case 'right':
+				x = fallbackDistance;
+				roomName = Cartographer.findRelativeRoomName(roomName, 1, 0);
+				break;
+			case 'top':
+				y = 49 - fallbackDistance;
+				roomName = Cartographer.findRelativeRoomName(roomName, 0, -1);
+				break;
+			case 'bottom':
+				y = fallbackDistance;
+				roomName = Cartographer.findRelativeRoomName(roomName, 0, 1);
+				break;
+			default:
+				log.error('Error getting fallback position!');
+				break;
+		}
+		return new RoomPosition(x, y, roomName);
 	}
 
 
@@ -184,6 +247,15 @@ export class CombatIntel {
 
 	static getRangedHealAmount(creep: Creep | Zerg): number {
 		return RANGED_HEAL_POWER * this.getHealPotential(toCreep(creep));
+	}
+
+	// If a creep appears to primarily be a healer
+	static isHealer(zerg: Creep | Zerg): boolean {
+		const creep = toCreep(zerg);
+		const healParts = _.filter(zerg.body, part => part.type == HEAL).length;
+		const attackParts = _.filter(zerg.body, part => part.type == ATTACK).length;
+		const rangedAttackParts = _.filter(zerg.body, part => part.type == RANGED_ATTACK).length;
+		return healParts > attackParts + rangedAttackParts;
 	}
 
 	// Attack potential of a single creep in units of effective number of parts
@@ -275,6 +347,10 @@ export class CombatIntel {
 		);
 	}
 
+	static minimumDamageMultiplierForGroup(creeps: Creep[]): number {
+		return _.min(_.map(creeps, creep => this.minimumDamageTakenMultiplier(creep)));
+	}
+
 	static getMassAttackDamageTo(attacker: Creep | Zerg, target: Creep | Structure): number {
 		if (isStructure(target) && (!isOwnedStructure(target) || target.my)) {
 			return 0;
@@ -324,6 +400,14 @@ export class CombatIntel {
 	// Maximum healing that a group of creeps can dish out (doesn't count for simultaneity restrictions)
 	static maxHealingByCreeps(creeps: Creep[]): number {
 		return _.sum(creeps, creep => this.getHealAmount(creep));
+	}
+
+	// Total attack/rangedAttack/heal potentials for a group of creeps
+	static combatPotentials(creeps: Creep[]): { attack: number, rangedAttack: number, heal: number } {
+		let attack = _.sum(creeps, creep => this.getAttackPotential(creep));
+		let rangedAttack = _.sum(creeps, creep => this.getRangedAttackPotential(creep));
+		let heal = _.sum(creeps, creep => this.getHealPotential(creep));
+		return {attack, rangedAttack, heal};
 	}
 
 	// Maximum damage that is dealable at a given position by enemy forces
@@ -430,35 +514,6 @@ export class CombatIntel {
 	static getPositionsNearEnemies(hostiles: Creep[], range = 0): RoomPosition[] {
 		return _.unique(_.flatten(_.map(hostiles, hostile =>
 			hostile.pos.getPositionsInRange(range, false, true))));
-	}
-
-	/* Fallback is a location on the other side of the nearest exit the directive is placed at */
-	static getFallbackFrom(pos: RoomPosition): RoomPosition {
-		let {x, y, roomName} = pos;
-		let rangesToExit = [[x, 'left'], [49 - x, 'right'], [y, 'top'], [49 - y, 'bottom']];
-		let [range, direction] = _.first(_.sortBy(rangesToExit, pair => pair[0]));
-		switch (direction) {
-			case 'left':
-				x = 47;
-				roomName = Cartographer.findRelativeRoomName(roomName, -1, 0);
-				break;
-			case 'right':
-				x = 2;
-				roomName = Cartographer.findRelativeRoomName(roomName, 1, 0);
-				break;
-			case 'top':
-				y = 47;
-				roomName = Cartographer.findRelativeRoomName(roomName, 0, -1);
-				break;
-			case 'bottom':
-				y = 2;
-				roomName = Cartographer.findRelativeRoomName(roomName, 0, 1);
-				break;
-			default:
-				log.error('Error getting fallback position!');
-				break;
-		}
-		return new RoomPosition(x, y, roomName);
 	}
 
 }
